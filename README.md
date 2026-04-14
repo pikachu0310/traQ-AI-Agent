@@ -1,29 +1,31 @@
-# traQ + Codex + Mastra MVP
+# traQ + Codex + MCP MVP
 
-traQ からの 1 メッセージを起点に、以下を実際に通すための最小 MVP です。
+traQ からの 1 メッセージを起点に、以下を通す最小 MVP です。
 
 1. traQ メッセージ受信
 2. Codex CLI を non-interactive で起動
-3. Codex が Mastra の local stdio MCP ツールを呼び出し
+3. Codex が MCP ツールを呼び出し
 4. 進捗を traQ 側へ中継
 5. 最終回答を traQ 側へ返却
 
-今回は「動くこと」を優先し、Node.js + TypeScript + pnpm workspace + file-based persistence で実装しています。
+今回の追加で、`traQ OpenAPI` を使う専用 MCP サーバー (`apps/traq-mcp`) を実装しました。  
+Codex から `operationId` 単位で traQ API を呼べます。
 
 ## 構成
 
 ```text
 apps/
   traq-bot/       # traQ real/mock adapter + オーケストレーション
-  mastra-mcp/     # Mastra MCP server (stdio)
+  mastra-mcp/     # ローカル fixture 用 MCP server (stdio)
+  traq-mcp/       # traQ OpenAPI 連携 MCP server (stdio)
 packages/
   codex-runner/   # Codex CLI 実行、JSONL 解析、resume、raw log 保存
   shared/         # 型、設定、file persistence
 docs/
   mvp-spec-traq-codex-mastra.md
 _references/
-  discord-codex-bot/   # 参考実装 clone
-data/             # 会話マッピングと JSONL ログの保存先
+  discord-codex-bot/
+data/
 ```
 
 ## 実装範囲
@@ -33,25 +35,27 @@ data/             # 会話マッピングと JSONL ログの保存先
   - `mock` モード: ローカル擬似イベント投入とコンソール出力
   - 進捗中継: セッション開始 / MCP ツール開始・完了 / コマンド / エラー / 最終回答
 - `apps/mastra-mcp`
-  - local stdio MCP サーバー
-  - 提供ツール
-    - `get_demo_service_status`
-    - `read_fixture_markdown`
+  - `get_demo_service_status`
+  - `read_fixture_markdown`
+- `apps/traq-mcp`
+  - OpenAPI 取得元: `https://raw.githubusercontent.com/traPtitech/traQ/master/docs/v3-api.yaml`
+  - `list_traq_operations`
+  - `describe_traq_operation`
+  - `call_traq_operation`
 - `packages/codex-runner`
-  - `codex exec --json` / `codex exec ... resume <session>` の起動
+  - `codex exec --json` / `resume`
   - JSONL ストリーム解析とイベント化
-  - `thread.started` から session id 抽出
   - `data/conversations/*.json` に session mapping 保存
   - `data/codex-sessions/**/*.jsonl` に raw JSONL 保存
-  - `data/runtime/codex-home/config.toml` を自動生成して MCP サーバーを接続
+  - `data/runtime/codex-home/config.toml` に複数 MCP サーバー定義を自動生成
 
 ## 前提条件
 
 - Node.js 22 以上
 - Corepack 有効 (`corepack`)
-- Codex CLI が利用可能であること (`codex --help`)
-- Codex 認証済み (`~/.codex/auth.json` が存在)
-- (real traQ の場合) Bot token
+- Codex CLI が利用可能 (`codex --help`)
+- Codex 認証済み (`~/.codex/auth.json`)
+- traQ API 実行には `TRAQ_BOT_TOKEN`
 
 ## セットアップ
 
@@ -66,12 +70,6 @@ corepack pnpm install
 corepack pnpm demo
 ```
 
-期待される進捗ログ例:
-
-- `MCP 呼び出し開始: mastra_local/get_demo_service_status`
-- `MCP 呼び出し完了: ... (completed)`
-- `最終回答: ...`
-
 ## Real traQ での実行
 
 `.env` の最低限:
@@ -81,7 +79,6 @@ BOT_MODE=real
 TRAQ_BOT_TOKEN=xxxxxxxx
 TRAQ_WS_URL=wss://q.trap.jp/api/v3/bots/ws
 TRAQ_API_BASE_URL=https://q.trap.jp/api/v3
-# 可能なら設定（自己送信無視の精度向上）
 TRAQ_BOT_USER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 
@@ -91,14 +88,25 @@ TRAQ_BOT_USER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 corepack pnpm dev
 ```
 
-traQ で `BOT_TRIGGER_PREFIX`（デフォルト `/codex`）付きメッセージを送ると処理します。
+## MCP 設定
 
-## Codex / Mastra 接続
+Codex は `CODEX_HOME=data/runtime/codex-home` で起動し、`config.toml` に `mcp_servers.*` を生成します。
 
-- Codex は `CODEX_HOME=data/runtime/codex-home` を使って起動
-- `data/runtime/codex-home/config.toml` に `mcp_servers.mastra_local` を生成
-- デフォルト起動コマンド:
-  - `node --import tsx apps/mastra-mcp/src/index.ts`
+- 既定:
+  - `mastra_local`（常時）
+  - `traq_api`（`TRAQ_BOT_TOKEN` がある場合）
+- 明示的 override:
+  - `MCP_SERVERS_JSON` に JSON 配列で複数サーバーを指定
+
+`.env.example` に `TRAQ_MCP_*` / `MCP_SERVERS_JSON` の設定例を記載しています。
+
+## traQ API を呼ぶときの基本フロー
+
+1. `list_traq_operations` で候補の `operationId` を探す
+2. `describe_traq_operation` で必要な path/query/body を確認する
+3. `call_traq_operation` で実行する
+
+`call_traq_operation` は `dryRun=true` でリクエスト内容だけ確認できます。
 
 ## 永続化ファイル
 
@@ -106,12 +114,22 @@ traQ で `BOT_TRIGGER_PREFIX`（デフォルト `/codex`）付きメッセージ
   - `data/conversations/{conversation_key}.json`
 - Codex raw JSONL:
   - `data/codex-sessions/{conversation_key}/{timestamp}_{session_id}.jsonl`
-- Codex ローカル設定/実行状態:
+- Codex ローカル設定:
   - `data/runtime/codex-home/*`
+
+## 拡張方針（複数サービス対応）
+
+今回の構成は「サービスごとに MCP サーバーを足し、Codex 側では `mcp_servers` を増やす」形です。
+
+1. 別サービスの OpenAPI MCP サーバーを `apps/<service>-mcp` として追加
+2. `MCP_SERVERS_JSON` へ登録
+3. Bot 側プロンプトに利用方針を追記
+
+この手順で traQ 以外にも水平展開できます。
 
 ## 参考実装から流用した考え方
 
-`_references/discord-codex-bot` から主に以下を流用:
+`_references/discord-codex-bot` から主に流用:
 
 - Codex CLI の non-interactive 実行
 - JSONL ストリーム解析
@@ -119,20 +137,8 @@ traQ で `BOT_TRIGGER_PREFIX`（デフォルト `/codex`）付きメッセージ
 - raw セッションログ保存
 - Bot 側への進捗中継
 
-切り捨てたもの:
-
-- Discord 固有 UI / Deno 固有構成
-- 管理機能、複雑な運用機能、キューや重い基盤
-
 ## 割り切り / 未実装
 
-- traQ メッセージ編集による進捗更新は未実装（現状は追記送信）
+- traQ メッセージ編集による進捗更新は未実装（追記送信）
 - 同時実行制御・ジョブキューは未実装
 - 本番運用向け監視/認証強化は未実装
-
-## 今後の拡張ポイント
-
-1. 進捗を 1 メッセージ更新方式へ変更
-2. traQ thread 連携の強化（threadId 取得の最適化）
-3. Mastra ツールを内部サービス API 参照へ拡張
-4. retry/backoff と実行キューの導入

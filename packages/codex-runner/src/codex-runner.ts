@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import type {
   CodexRunRequest,
   CodexRunResult,
+  McpServerConfig,
   RunnerProgressEvent,
 } from "@mvp/shared";
 import { FileStateStore, toRelativeDataPath } from "@mvp/shared";
@@ -15,12 +16,11 @@ export interface CodexRunnerOptions {
   codexWorkingDir: string;
   codexModel?: string;
   codexReasoningEffort?: string;
+  codexFeatureFlags?: string[];
   dangerousBypass: boolean;
   codexHomeDir: string;
   codexAuthSourcePath?: string;
-  mcpServerCommand: string;
-  mcpServerArgs: string[];
-  mcpServerCwd: string;
+  mcpServers: McpServerConfig[];
 }
 
 function truncateText(text: string, maxLength = 300): string {
@@ -38,9 +38,11 @@ function buildCodexArgs(
     "--color",
     "never",
     "--skip-git-repo-check",
-    "--enable",
-    "rmcp_client",
   ];
+
+  for (const featureFlag of options.codexFeatureFlags ?? []) {
+    commonArgs.push("--enable", featureFlag);
+  }
 
   if (options.dangerousBypass) {
     commonArgs.push("--dangerously-bypass-approvals-and-sandbox");
@@ -74,9 +76,7 @@ export class CodexRunner {
     await prepareCodexHome({
       codexHomeDir: this.options.codexHomeDir,
       workspaceDir: this.options.codexWorkingDir,
-      mcpCommand: this.options.mcpServerCommand,
-      mcpArgs: this.options.mcpServerArgs,
-      mcpCwd: this.options.mcpServerCwd,
+      mcpServers: this.options.mcpServers,
       authSourcePath: this.options.codexAuthSourcePath,
     });
   }

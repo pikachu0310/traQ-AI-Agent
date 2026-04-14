@@ -15,6 +15,11 @@ function parseList(raw: string | undefined, fallback: string[]): string[] {
   return raw.split(" ").map((entry) => entry.trim()).filter(Boolean);
 }
 
+function parseFeatureList(raw: string | undefined, fallback: string[]): string[] {
+  if (!raw || raw.trim() === "") return fallback;
+  return [...new Set(raw.split(/[\s,]+/).map((entry) => entry.trim()).filter(Boolean))];
+}
+
 function expandHomePath(input: string): string {
   if (input === "~") return os.homedir();
   if (input.startsWith("~/")) {
@@ -29,6 +34,111 @@ function resolvePathFromCwd(cwd: string, raw: string): string {
   return path.resolve(cwd, expanded);
 }
 
+export interface McpServerConfig {
+  name: string;
+  command: string;
+  args: string[];
+  cwd: string;
+}
+
+function ensureUniqueServerNames(servers: McpServerConfig[]): void {
+  const seen = new Set<string>();
+  for (const server of servers) {
+    if (seen.has(server.name)) {
+      throw new Error(`Duplicate MCP server name: ${server.name}`);
+    }
+    seen.add(server.name);
+  }
+}
+
+function parseMcpServersJson(
+  raw: string | undefined,
+  cwd: string,
+): McpServerConfig[] | null {
+  if (!raw || raw.trim() === "") return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(
+      `Failed to parse MCP_SERVERS_JSON: ${String((error as Error).message)}`,
+    );
+  }
+
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error("MCP_SERVERS_JSON must be a non-empty JSON array.");
+  }
+
+  const servers: McpServerConfig[] = parsed.map((entry) => {
+    if (!entry || typeof entry !== "object") {
+      throw new Error("Each MCP server entry must be an object.");
+    }
+    const record = entry as Record<string, unknown>;
+    const name = typeof record.name === "string" ? record.name.trim() : "";
+    const command =
+      typeof record.command === "string" ? record.command.trim() : "";
+    const args = Array.isArray(record.args)
+      ? record.args.filter((arg): arg is string => typeof arg === "string")
+      : [];
+    const serverCwd =
+      typeof record.cwd === "string" && record.cwd.trim() !== ""
+        ? resolvePathFromCwd(cwd, record.cwd)
+        : cwd;
+
+    if (!name) {
+      throw new Error("Each MCP server must have a non-empty string name.");
+    }
+    if (!command) {
+      throw new Error(`MCP server "${name}" is missing command.`);
+    }
+    return {
+      name,
+      command,
+      args,
+      cwd: serverCwd,
+    };
+  });
+
+  ensureUniqueServerNames(servers);
+  return servers;
+}
+
+function buildDefaultMcpServers(
+  env: NodeJS.ProcessEnv,
+  projectRoot: string,
+): McpServerConfig[] {
+  const servers: McpServerConfig[] = [
+    {
+      name: env.MCP_SERVER_NAME ?? "mastra_local",
+      command: env.MCP_SERVER_COMMAND ?? "node",
+      args: parseList(env.MCP_SERVER_ARGS, [
+        "--import",
+        "tsx",
+        "apps/mastra-mcp/src/index.ts",
+      ]),
+      cwd: resolvePathFromCwd(projectRoot, env.MCP_SERVER_CWD ?? "."),
+    },
+  ];
+
+  const traqMcpEnabled = parseBool(env.TRAQ_MCP_ENABLED, Boolean(env.TRAQ_BOT_TOKEN));
+  if (traqMcpEnabled) {
+    servers.push({
+      name: env.TRAQ_MCP_SERVER_NAME ?? "traq_api",
+      command: env.TRAQ_MCP_COMMAND ?? "node",
+      args: parseList(env.TRAQ_MCP_ARGS, [
+        "--import",
+        "tsx",
+        "apps/traq-mcp/src/index.ts",
+      ]),
+      cwd: resolvePathFromCwd(projectRoot, env.TRAQ_MCP_CWD ?? "."),
+    });
+  }
+
+  ensureUniqueServerNames(servers);
+  return servers;
+}
+
 export interface AppConfig {
   mode: BotMode;
   triggerPrefix: string;
@@ -38,14 +148,13 @@ export interface AppConfig {
     command: string;
     model?: string;
     reasoningEffort?: string;
+    enableFeatures: string[];
     dangerousBypass: boolean;
     codexHomeTemplateDir: string;
     authSourcePath?: string;
   };
   mcp: {
-    command: string;
-    args: string[];
-    cwd: string;
+    servers: McpServerConfig[];
   };
   traq: {
     token?: string;
@@ -72,6 +181,9 @@ export function loadAppConfig(
     projectRoot,
     env.CODEX_WORKING_DIR ?? ".",
   );
+  const mcpServers =
+    parseMcpServersJson(env.MCP_SERVERS_JSON, projectRoot) ??
+    buildDefaultMcpServers(env, projectRoot);
 
   return {
     mode,
@@ -82,6 +194,7 @@ export function loadAppConfig(
       command: env.CODEX_COMMAND ?? "codex",
       model: env.CODEX_MODEL || undefined,
       reasoningEffort: env.CODEX_REASONING_EFFORT || undefined,
+      enableFeatures: parseFeatureList(env.CODEX_ENABLE_FEATURES, []),
       dangerousBypass: parseBool(env.CODEX_DANGEROUS_BYPASS, true),
       codexHomeTemplateDir: resolvePathFromCwd(
         projectRoot,
@@ -93,13 +206,7 @@ export function loadAppConfig(
       ),
     },
     mcp: {
-      command: env.MCP_SERVER_COMMAND ?? "node",
-      args: parseList(env.MCP_SERVER_ARGS, [
-        "--import",
-        "tsx",
-        "apps/mastra-mcp/src/index.ts",
-      ]),
-      cwd: resolvePathFromCwd(projectRoot, env.MCP_SERVER_CWD ?? "."),
+      servers: mcpServers,
     },
     traq: {
       token: env.TRAQ_BOT_TOKEN || undefined,

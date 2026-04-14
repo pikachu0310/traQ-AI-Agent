@@ -38,12 +38,11 @@ async function main(): Promise<void> {
     codexWorkingDir: config.codexWorkingDir,
     codexModel: config.codex.model,
     codexReasoningEffort: config.codex.reasoningEffort,
+    codexFeatureFlags: config.codex.enableFeatures,
     dangerousBypass: config.codex.dangerousBypass,
     codexHomeDir,
     codexAuthSourcePath: config.codex.authSourcePath,
-    mcpServerCommand: config.mcp.command,
-    mcpServerArgs: config.mcp.args,
-    mcpServerCwd: config.mcp.cwd,
+    mcpServers: config.mcp.servers,
   });
   await runner.initialize();
 

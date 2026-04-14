@@ -1,12 +1,11 @@
 import path from "node:path";
 import { access, copyFile, mkdir, writeFile } from "node:fs/promises";
+import type { McpServerConfig } from "@mvp/shared";
 
 export interface CodexHomeConfigInput {
   codexHomeDir: string;
   workspaceDir: string;
-  mcpCommand: string;
-  mcpArgs: string[];
-  mcpCwd: string;
+  mcpServers: McpServerConfig[];
   authSourcePath?: string;
 }
 
@@ -19,18 +18,26 @@ function tomlArray(values: string[]): string {
   return `[${escaped}]`;
 }
 
+function renderMcpServerConfig(server: McpServerConfig): string[] {
+  return [
+    `[mcp_servers."${escapeTomlString(server.name)}"]`,
+    `command = "${escapeTomlString(server.command)}"`,
+    `args = ${tomlArray(server.args)}`,
+    `cwd = "${escapeTomlString(server.cwd)}"`,
+    "",
+  ];
+}
+
 function buildConfigToml(input: CodexHomeConfigInput): string {
   const workspace = escapeTomlString(input.workspaceDir);
-  const mcpCwd = escapeTomlString(input.mcpCwd);
+  const mcpServerBlocks = input.mcpServers.flatMap((server) =>
+    renderMcpServerConfig(server),
+  );
   return [
     `[projects."${workspace}"]`,
     `trust_level = "trusted"`,
     "",
-    `[mcp_servers.mastra_local]`,
-    `command = "${escapeTomlString(input.mcpCommand)}"`,
-    `args = ${tomlArray(input.mcpArgs)}`,
-    `cwd = "${mcpCwd}"`,
-    "",
+    ...mcpServerBlocks,
   ].join("\n");
 }
 
