@@ -38,12 +38,8 @@ export class BotService {
     const previous = await store.loadConversation(conversationKey);
     const target = { channelId: message.channelId, threadId: message.threadId };
 
-    await this.adapter.sendMessage(
-      target,
-      `Codex 実行を開始します。conversationKey=\`${conversationKey}\``,
-    );
-
     let agentMessageProgressCount = 0;
+    let startProgressNotified = false;
     try {
       const result = await this.runner.run(
         {
@@ -52,6 +48,15 @@ export class BotService {
           resumeSessionId: previous?.lastSessionId,
         },
         async (event) => {
+          if (event.type === "session_started") {
+            startProgressNotified = true;
+            await this.adapter.sendMessage(
+              target,
+              `Codex 実行を開始 (conversationKey=\`${conversationKey}\`) (セッション開始: \`${event.sessionId}\`)`,
+            );
+            return;
+          }
+
           const progressText = this.formatProgressEvent(event, () => {
             agentMessageProgressCount += 1;
             return agentMessageProgressCount;
@@ -60,6 +65,13 @@ export class BotService {
           await this.adapter.sendMessage(target, progressText);
         },
       );
+
+      if (!startProgressNotified) {
+        await this.adapter.sendMessage(
+          target,
+          `Codex 実行を開始 (conversationKey=\`${conversationKey}\`)`,
+        );
+      }
 
       await this.saveConversation(previous, conversationKey, prompt, result);
       await this.adapter.sendMessage(
@@ -98,9 +110,9 @@ export class BotService {
   ): string | null {
     switch (event.type) {
       case "session_started":
-        return `セッション開始: \`${event.sessionId}\``;
+        return null;
       case "turn_started":
-        return "Codex が処理ターンを開始しました。";
+        return null;
       case "tool_call_started":
         return `MCP 呼び出し開始: \`${event.server}/${event.tool}\``;
       case "tool_call_finished":
@@ -110,6 +122,7 @@ export class BotService {
       case "command_started":
         return `コマンド実行: \`${truncate(event.command, 120)}\``;
       case "command_finished":
+        if (event.exitCode === 0) return null;
         return `コマンド完了: \`${truncate(event.command, 120)}\`${
           event.exitCode !== undefined ? ` (exit=${event.exitCode})` : ""
         }`;
