@@ -34,9 +34,22 @@ data/             # 会話マッピングと JSONL ログの保存先
   - 進捗中継: セッション開始 / MCP ツール開始・完了 / コマンド / エラー / 最終回答
 - `apps/mastra-mcp`
   - local stdio MCP サーバー
+  - ツールをサービス単位で束ねる provider 構成
   - 提供ツール
-    - `get_demo_service_status`
-    - `read_fixture_markdown`
+    - fixture 系:
+      - `get_demo_service_status`
+      - `read_fixture_markdown`
+    - traQ API 系 (`traq-bot-ts` / OpenAPI 生成クライアント経由):
+      - `traq_get_api_capabilities`
+      - `traq_get_me`
+      - `traq_list_channels`
+      - `traq_get_channel`
+      - `traq_get_message`
+      - `traq_get_channel_messages`
+      - `traq_search_messages`
+      - `traq_list_users`
+      - `traq_post_message` (`TRAQ_MCP_ENABLE_WRITE_TOOLS=true` の時のみ有効)
+      - `traq_post_direct_message` (`TRAQ_MCP_ENABLE_WRITE_TOOLS=true` の時のみ有効)
 - `packages/codex-runner`
   - `codex exec --json` / `codex exec ... resume <session>` の起動
   - JSONL ストリーム解析とイベント化
@@ -52,6 +65,7 @@ data/             # 会話マッピングと JSONL ログの保存先
 - Codex CLI が利用可能であること (`codex --help`)
 - Codex 認証済み (`~/.codex/auth.json` が存在)
 - (real traQ の場合) Bot token
+- traQ API を MCP ツールから叩く場合、`.env` に `TRAQ_BOT_TOKEN` が必要
 
 ## セットアップ
 
@@ -81,6 +95,7 @@ BOT_MODE=real
 TRAQ_BOT_TOKEN=xxxxxxxx
 TRAQ_WS_URL=wss://q.trap.jp/api/v3/bots/ws
 TRAQ_API_BASE_URL=https://q.trap.jp/api/v3
+TRAQ_MCP_ENABLE_WRITE_TOOLS=false
 # 可能なら設定（自己送信無視の精度向上）
 TRAQ_BOT_USER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
@@ -92,6 +107,15 @@ corepack pnpm dev
 ```
 
 traQ で `BOT_TRIGGER_PREFIX`（デフォルト `/codex`）付きメッセージを送ると処理します。
+
+## traQ API ツールの使い方
+
+- Codex への依頼文で `traq_` プレフィックスの MCP ツール利用を促すと、traQ API を直接参照できます。
+- まず `traq_get_api_capabilities` を呼ぶと、トークン設定有無・書き込み可否・利用可能ツールを確認できます。
+- 書き込み系 (`traq_post_message`, `traq_post_direct_message`) は誤操作防止のためデフォルト無効です。
+  - 有効化する場合のみ `.env` に `TRAQ_MCP_ENABLE_WRITE_TOOLS=true` を設定してください。
+- traQ API クライアントは `traQ OpenAPI` 由来です:
+  - `https://raw.githubusercontent.com/traPtitech/traQ/master/docs/v3-api.yaml`
 
 ## Codex / Mastra 接続
 
@@ -134,5 +158,6 @@ traQ で `BOT_TRIGGER_PREFIX`（デフォルト `/codex`）付きメッセージ
 
 1. 進捗を 1 メッセージ更新方式へ変更
 2. traQ thread 連携の強化（threadId 取得の最適化）
-3. Mastra ツールを内部サービス API 参照へ拡張
-4. retry/backoff と実行キューの導入
+3. `apps/mastra-mcp/src/providers` に provider を追加して他サービス API を段階的に統合
+4. OpenAPI から provider 雛形を自動生成するスクリプトを追加
+5. retry/backoff と実行キューの導入

@@ -95,9 +95,9 @@ export class BotService {
   private buildExecutionPrompt(userPrompt: string): string {
     return [
       "You are the execution agent for a traQ bot MVP.",
-      "Before writing the final answer, call MCP tool `get_demo_service_status` at least once.",
-      "If additional local context is useful, call `read_fixture_markdown`.",
-      "Do not use shell commands to read the fixture files when MCP tools are available.",
+      "When the user asks about traQ data or operations, use MCP tools prefixed with `traq_` first.",
+      "Use local fixture tools (`get_demo_service_status`, `read_fixture_markdown`) only when local fixture context is needed.",
+      "Prefer MCP tools over ad-hoc shell commands whenever equivalent tools exist.",
       "",
       "User request:",
       userPrompt,
