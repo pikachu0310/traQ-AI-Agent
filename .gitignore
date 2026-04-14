@@ -1,0 +1,19 @@
+node_modules
+.pnpm-store
+.env
+.env.*
+!.env.example
+coverage
+dist
+.vscode
+
+# Runtime outputs
+data/**
+!data/.gitkeep
+apps/traq-bot/data/
+
+# Codex local config generated for runner
+.codex/
+
+# Reference repositories
+_references/

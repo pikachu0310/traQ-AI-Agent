@@ -1,0 +1,20 @@
+{
+  "name": "traq-codex-mastra-mvp",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MVP for traQ + Codex + Mastra MCP",
+  "packageManager": "pnpm@10.9.0",
+  "scripts": {
+    "dev": "corepack pnpm --filter @mvp/traq-bot dev",
+    "demo": "corepack pnpm --filter @mvp/traq-bot demo",
+    "build": "corepack pnpm -r build",
+    "typecheck": "corepack pnpm -r typecheck",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.12",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1"
+  }
+}

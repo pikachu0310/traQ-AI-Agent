@@ -1,0 +1,19 @@
+{
+  "name": "@mvp/mastra-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "mcp:stdio": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"@mvp/mastra-mcp: covered by e2e demo\""
+  },
+  "dependencies": {
+    "@mastra/core": "^1.24.1",
+    "@mastra/mcp": "^1.4.2",
+    "zod": "^3.24.4"
+  }
+}

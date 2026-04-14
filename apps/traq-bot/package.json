@@ -1,0 +1,19 @@
+{
+  "name": "@mvp/traq-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/main.ts",
+  "scripts": {
+    "dev": "tsx src/main.ts",
+    "demo": "BOT_MODE=mock tsx src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"@mvp/traq-bot: covered by e2e demo\""
+  },
+  "dependencies": {
+    "@mvp/codex-runner": "workspace:*",
+    "@mvp/shared": "workspace:*",
+    "traq-bot-ts": "^1.5.2"
+  }
+}

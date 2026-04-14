@@ -1,0 +1,21 @@
+{
+  "updatedAt": "2026-04-14T00:00:00Z",
+  "environment": "local-mvp",
+  "services": {
+    "traq-event-relay": {
+      "status": "operational",
+      "latencyMsP95": 120,
+      "note": "mock input mode available"
+    },
+    "codex-runner": {
+      "status": "operational",
+      "latencyMsP95": 980,
+      "note": "non-interactive exec + JSON streaming enabled"
+    },
+    "mastra-mcp": {
+      "status": "operational",
+      "latencyMsP95": 65,
+      "note": "stdio transport with local fixture tools"
+    }
+  }
+}
