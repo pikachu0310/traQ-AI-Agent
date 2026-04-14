@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { CodexEventParser } from "../packages/codex-runner/src/event-parser.js";
 import { FileStateStore } from "../packages/shared/src/persistence/file-store.js";
+import { loadAppConfig } from "../packages/shared/src/config.js";
 
 describe("CodexEventParser", () => {
   it("extracts session id and mcp tool progress events", () => {
@@ -58,5 +59,32 @@ describe("FileStateStore", () => {
     expect(loaded?.lastSessionId).toBe("session-a");
 
     await rm(tempDir, { recursive: true, force: true });
+  });
+});
+
+describe("loadAppConfig", () => {
+  it("resolves paths from workspace root when started in a subpackage cwd", () => {
+    const fakeEnv = {
+      BOT_MODE: "real",
+      TRAQ_BOT_TOKEN: "dummy-token",
+      BOT_DATA_DIR: "./data",
+      CODEX_WORKING_DIR: ".",
+      CODEX_HOME_TEMPLATE_DIR: "./data/runtime/codex-home",
+      CODEX_AUTH_SOURCE: "~/.codex/auth.json",
+      MCP_SERVER_CWD: ".",
+      INIT_CWD: "/tmp/unrelated-repo",
+    } as unknown as NodeJS.ProcessEnv;
+
+    const packageCwd = path.resolve("apps/traq-bot");
+    const config = loadAppConfig(fakeEnv, packageCwd);
+
+    expect(config.mode).toBe("real");
+    expect(config.traq.token).toBe("dummy-token");
+    expect(config.dataDir).toBe(path.resolve("data"));
+    expect(config.codexWorkingDir).toBe(path.resolve("."));
+    expect(config.codex.codexHomeTemplateDir).toBe(
+      path.resolve("data/runtime/codex-home"),
+    );
+    expect(config.mcp.cwd).toBe(path.resolve("."));
   });
 });

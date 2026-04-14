@@ -38,8 +38,6 @@ function buildCodexArgs(
     "--color",
     "never",
     "--skip-git-repo-check",
-    "--enable",
-    "rmcp_client",
   ];
 
   if (options.dangerousBypass) {

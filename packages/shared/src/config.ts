@@ -1,9 +1,32 @@
 import path from "node:path";
 import os from "node:os";
+import fs from "node:fs";
 import dotenv from "dotenv";
 import type { BotMode } from "./types.js";
 
-dotenv.config();
+function hasFile(dir: string, fileName: string): boolean {
+  return fs.existsSync(path.join(dir, fileName));
+}
+
+function findProjectRootFromCwd(cwd: string): string {
+  let current = path.resolve(cwd);
+
+  while (true) {
+    if (hasFile(current, "pnpm-workspace.yaml")) {
+      return current;
+    }
+
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return path.resolve(cwd);
+    }
+    current = parent;
+  }
+}
+
+function loadEnvFromProjectRoot(projectRoot: string): void {
+  dotenv.config({ path: path.join(projectRoot, ".env"), override: false });
+}
 
 function parseBool(raw: string | undefined, fallback: boolean): boolean {
   if (raw === undefined || raw === "") return fallback;
@@ -65,54 +88,62 @@ export function loadAppConfig(
   env: NodeJS.ProcessEnv = process.env,
   cwd = process.cwd(),
 ): AppConfig {
-  const projectRoot = env.INIT_CWD ? path.resolve(env.INIT_CWD) : cwd;
-  const mode = (env.BOT_MODE ?? "mock") as BotMode;
-  const dataDir = resolvePathFromCwd(projectRoot, env.BOT_DATA_DIR ?? "./data");
+  const projectRoot = findProjectRootFromCwd(cwd);
+  if (env === process.env) {
+    loadEnvFromProjectRoot(projectRoot);
+  }
+
+  const resolvedEnv = env === process.env ? process.env : env;
+  const mode = (resolvedEnv.BOT_MODE ?? "mock") as BotMode;
+  const dataDir = resolvePathFromCwd(
+    projectRoot,
+    resolvedEnv.BOT_DATA_DIR ?? "./data",
+  );
   const codexWorkingDir = resolvePathFromCwd(
     projectRoot,
-    env.CODEX_WORKING_DIR ?? ".",
+    resolvedEnv.CODEX_WORKING_DIR ?? ".",
   );
 
   return {
     mode,
-    triggerPrefix: env.BOT_TRIGGER_PREFIX ?? "/codex",
+    triggerPrefix: resolvedEnv.BOT_TRIGGER_PREFIX ?? "/codex",
     dataDir,
     codexWorkingDir,
     codex: {
-      command: env.CODEX_COMMAND ?? "codex",
-      model: env.CODEX_MODEL || undefined,
-      reasoningEffort: env.CODEX_REASONING_EFFORT || undefined,
-      dangerousBypass: parseBool(env.CODEX_DANGEROUS_BYPASS, true),
+      command: resolvedEnv.CODEX_COMMAND ?? "codex",
+      model: resolvedEnv.CODEX_MODEL || undefined,
+      reasoningEffort: resolvedEnv.CODEX_REASONING_EFFORT || undefined,
+      dangerousBypass: parseBool(resolvedEnv.CODEX_DANGEROUS_BYPASS, true),
       codexHomeTemplateDir: resolvePathFromCwd(
         projectRoot,
-        env.CODEX_HOME_TEMPLATE_DIR ?? "./data/runtime/codex-home",
+        resolvedEnv.CODEX_HOME_TEMPLATE_DIR ?? "./data/runtime/codex-home",
       ),
       authSourcePath: resolvePathFromCwd(
         projectRoot,
-        env.CODEX_AUTH_SOURCE ?? "~/.codex/auth.json",
+        resolvedEnv.CODEX_AUTH_SOURCE ?? "~/.codex/auth.json",
       ),
     },
     mcp: {
-      command: env.MCP_SERVER_COMMAND ?? "node",
-      args: parseList(env.MCP_SERVER_ARGS, [
+      command: resolvedEnv.MCP_SERVER_COMMAND ?? "node",
+      args: parseList(resolvedEnv.MCP_SERVER_ARGS, [
         "--import",
         "tsx",
         "apps/mastra-mcp/src/index.ts",
       ]),
-      cwd: resolvePathFromCwd(projectRoot, env.MCP_SERVER_CWD ?? "."),
+      cwd: resolvePathFromCwd(projectRoot, resolvedEnv.MCP_SERVER_CWD ?? "."),
     },
     traq: {
-      token: env.TRAQ_BOT_TOKEN || undefined,
-      wsUrl: env.TRAQ_WS_URL ?? "wss://q.trap.jp/api/v3/bots/ws",
-      apiBaseUrl: env.TRAQ_API_BASE_URL ?? "https://q.trap.jp/api/v3",
-      botUserId: env.TRAQ_BOT_USER_ID || undefined,
+      token: resolvedEnv.TRAQ_BOT_TOKEN || undefined,
+      wsUrl: resolvedEnv.TRAQ_WS_URL ?? "wss://q.trap.jp/api/v3/bots/ws",
+      apiBaseUrl: resolvedEnv.TRAQ_API_BASE_URL ?? "https://q.trap.jp/api/v3",
+      botUserId: resolvedEnv.TRAQ_BOT_USER_ID || undefined,
     },
     mock: {
-      channelId: env.MOCK_CHANNEL_ID ?? "mock-channel",
-      threadId: env.MOCK_THREAD_ID || undefined,
-      userId: env.MOCK_USER_ID ?? "mock-user",
+      channelId: resolvedEnv.MOCK_CHANNEL_ID ?? "mock-channel",
+      threadId: resolvedEnv.MOCK_THREAD_ID || undefined,
+      userId: resolvedEnv.MOCK_USER_ID ?? "mock-user",
       text:
-        env.MOCK_TEXT ??
+        resolvedEnv.MOCK_TEXT ??
         "/codex Mastra MCP の demo service status を取得して要約してください。",
     },
   };

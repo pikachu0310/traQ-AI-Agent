@@ -9,6 +9,11 @@ interface RealAdapterConfig {
   botUserId?: string;
 }
 
+interface PingPatchedWebSocket {
+  ping: (data?: unknown, mask?: boolean, cb?: ((error?: Error) => void) | undefined) => void;
+  __mvpPingPatched?: boolean;
+}
+
 export class TraqRealAdapter implements BotAdapter {
   private readonly client: Client;
   private readonly api: Api<string>;
@@ -30,6 +35,31 @@ export class TraqRealAdapter implements BotAdapter {
           : undefined,
     });
     this.api.setSecurityData(config.token);
+  }
+
+  private patchClientPingForWsCompatibility(): void {
+    const ws = (this.client as unknown as { ws?: PingPatchedWebSocket }).ws;
+    if (!ws || ws.__mvpPingPatched) {
+      return;
+    }
+
+    const originalPing = ws.ping.bind(ws);
+    ws.ping = (
+      data?: unknown,
+      mask?: boolean,
+      cb?: ((error?: Error) => void) | undefined,
+    ): void => {
+      if (data !== undefined && data !== null && typeof data === "object") {
+        if (typeof mask === "function") {
+          originalPing(undefined, undefined, mask);
+          return;
+        }
+        originalPing(undefined, mask, cb);
+        return;
+      }
+      originalPing(data, mask, cb);
+    };
+    ws.__mvpPingPatched = true;
   }
 
   async start(
@@ -67,6 +97,7 @@ export class TraqRealAdapter implements BotAdapter {
     });
 
     await this.client.listen(() => {
+      this.patchClientPingForWsCompatibility();
       process.stderr.write("traQ websocket connected.\n");
     });
   }

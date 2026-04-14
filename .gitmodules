@@ -1,0 +1,4 @@
+[submodule "discord-codex-bot"]
+	path = discord-codex-bot
+	url = git@github.com:pikachu0310/discord-codex-bot.git
+	branch = main
