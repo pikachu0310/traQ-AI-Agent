@@ -1,12 +1,14 @@
 import { MCPServer } from "@mastra/mcp";
 import { buildFixtureTools } from "./providers/fixture-tools.js";
 import { buildTraqTools } from "./providers/traq-tools.js";
+import { buildCatalogResources } from "./providers/catalog-resources.js";
 
 async function main(): Promise<void> {
   const bundles = [buildFixtureTools(), buildTraqTools(process.env)];
 
   const tools = Object.assign({}, ...bundles.map((bundle) => bundle.tools));
   const instructions = bundles.map((bundle) => bundle.instructions).join(" ");
+  const resources = buildCatalogResources(bundles);
 
   const server = new MCPServer({
     id: "traq-codex-mastra-mvp",
@@ -15,6 +17,7 @@ async function main(): Promise<void> {
     description:
       "Local Mastra MCP server for the traQ + Codex MVP with traQ API tool support.",
     instructions,
+    resources,
     tools,
   });
 

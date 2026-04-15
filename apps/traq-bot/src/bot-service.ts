@@ -130,6 +130,8 @@ export class BotService {
     return [
       "You are the execution agent for a traQ bot MVP.",
       "When the user asks about traQ data or operations, use MCP tools prefixed with `traq_` first.",
+      "Do not use `list_mcp_resources` / `list_mcp_resource_templates` as the primary availability check for traQ operations.",
+      "Start traQ exploration with `traq_get_api_capabilities`, then continue with other `traq_` tools.",
       "Use local fixture tools (`get_demo_service_status`, `read_fixture_markdown`) only when local fixture context is needed.",
       "Prefer MCP tools over ad-hoc shell commands whenever equivalent tools exist.",
       "",
@@ -155,7 +157,7 @@ export class BotService {
         return `コマンド実行: \`${truncate(event.command, 120)}\``;
       case "command_finished":
         if (event.exitCode === 0) return null;
-        return `コマンド完了: \`${truncate(event.command, 120)}\`${
+        return `コマンド失敗:${
           event.exitCode !== undefined ? ` (exit=${event.exitCode})` : ""
         }`;
       case "agent_message":

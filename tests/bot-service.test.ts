@@ -182,4 +182,42 @@ describe("BotService progress output", () => {
     expect(finalMessage).not.toContain("session_id:");
     expect(finalMessage).not.toContain("raw_log:");
   });
+
+  it("sends command failure progress with exit code", async () => {
+    const store = {
+      loadConversation: vi.fn(async () => null),
+      saveConversation: vi.fn(),
+      deleteConversation: vi.fn(),
+    };
+    const run = vi.fn(async (_request, onProgress) => {
+      await onProgress({ type: "session_started", sessionId: "session-1" });
+      await onProgress({
+        type: "command_finished",
+        command: "false",
+        exitCode: 1,
+      });
+      await onProgress({
+        type: "run_completed",
+        usage: { inputTokens: 123, outputTokens: 45 },
+      });
+      return {
+        sessionId: "session-1",
+        finalAnswer: "回答本文",
+        rawLogPath: "codex-sessions/channel-a/demo.jsonl",
+        startedAt: "2026-01-01T00:00:00.000Z",
+        completedAt: "2026-01-01T00:00:01.000Z",
+      };
+    });
+    const runner = {
+      getStore: () => store,
+      run,
+    } as unknown as CodexRunner;
+    const adapter = new TestAdapter([makeInboundMessage("/codex hello")]);
+    const service = new BotService("/codex", adapter, runner);
+
+    await service.start();
+
+    expect(adapter.sent).toHaveLength(3);
+    expect(adapter.sent[1]?.content).toBe("コマンド失敗: (exit=1)");
+  });
 });

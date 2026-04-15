@@ -113,6 +113,7 @@ traQ で `BOT_TRIGGER_PREFIX`（デフォルト `/codex`）付きメッセージ
 
 - Codex への依頼文で `traq_` プレフィックスの MCP ツール利用を促すと、traQ API を直接参照できます。
 - まず `traq_get_api_capabilities` を呼ぶと、トークン設定有無・書き込み可否・利用可能ツールを確認できます。
+- `list_mcp_resources` が空でも `traq_` ツールは利用可能です（このサーバーは tool-first 構成）。判定には `traq_get_api_capabilities` を使ってください。
 - 書き込み系 (`traq_post_message`, `traq_post_direct_message`) は誤操作防止のためデフォルト無効です。
   - 有効化する場合のみ `.env` に `TRAQ_MCP_ENABLE_WRITE_TOOLS=true` を設定してください。
 - traQ API クライアントは `traQ OpenAPI` 由来です:
