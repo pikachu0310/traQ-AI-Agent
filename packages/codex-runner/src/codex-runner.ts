@@ -21,6 +21,7 @@ export interface CodexRunnerOptions {
   mcpServerCommand: string;
   mcpServerArgs: string[];
   mcpServerCwd: string;
+  mcpServerEnv: Record<string, string>;
 }
 
 function truncateText(text: string, maxLength = 300): string {
@@ -75,6 +76,7 @@ export class CodexRunner {
       mcpCommand: this.options.mcpServerCommand,
       mcpArgs: this.options.mcpServerArgs,
       mcpCwd: this.options.mcpServerCwd,
+      mcpEnv: this.options.mcpServerEnv,
       authSourcePath: this.options.codexAuthSourcePath,
     });
   }

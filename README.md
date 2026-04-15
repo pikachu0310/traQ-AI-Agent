@@ -123,6 +123,7 @@ traQ で `BOT_TRIGGER_PREFIX`（デフォルト `/codex`）付きメッセージ
 
 - Codex は `CODEX_HOME=data/runtime/codex-home` を使って起動
 - `data/runtime/codex-home/config.toml` に `mcp_servers.mastra_local` を生成
+- `config.toml` の `mcp_servers.mastra_local.env` に `TRAQ_*` 系の必要環境変数を埋め込み、MCP サーバー起動時へ明示注入
 - デフォルト起動コマンド:
   - `node --import tsx apps/mastra-mcp/src/index.ts`
 

@@ -69,6 +69,7 @@ export interface AppConfig {
     command: string;
     args: string[];
     cwd: string;
+    env: Record<string, string>;
   };
   traq: {
     token?: string;
@@ -103,6 +104,18 @@ export function loadAppConfig(
     projectRoot,
     resolvedEnv.CODEX_WORKING_DIR ?? ".",
   );
+  const mcpEnv: Record<string, string> = {};
+  for (const key of [
+    "TRAQ_BOT_TOKEN",
+    "TRAQ_API_BASE_URL",
+    "TRAQ_MCP_ENABLE_WRITE_TOOLS",
+    "TRAQ_MCP_DEFAULT_LIMIT",
+  ]) {
+    const value = resolvedEnv[key];
+    if (value !== undefined && value !== "") {
+      mcpEnv[key] = value;
+    }
+  }
 
   return {
     mode,
@@ -131,6 +144,7 @@ export function loadAppConfig(
         "apps/mastra-mcp/src/index.ts",
       ]),
       cwd: resolvePathFromCwd(projectRoot, resolvedEnv.MCP_SERVER_CWD ?? "."),
+      env: mcpEnv,
     },
     traq: {
       token: resolvedEnv.TRAQ_BOT_TOKEN || undefined,

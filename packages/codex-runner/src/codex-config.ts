@@ -7,11 +7,16 @@ export interface CodexHomeConfigInput {
   mcpCommand: string;
   mcpArgs: string[];
   mcpCwd: string;
+  mcpEnv: Record<string, string>;
   authSourcePath?: string;
 }
 
 function escapeTomlString(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r");
 }
 
 function tomlArray(values: string[]): string {
@@ -19,9 +24,17 @@ function tomlArray(values: string[]): string {
   return `[${escaped}]`;
 }
 
+function tomlKey(input: string): string {
+  return /^[A-Za-z0-9_-]+$/.test(input) ? input : `"${escapeTomlString(input)}"`;
+}
+
 function buildConfigToml(input: CodexHomeConfigInput): string {
   const workspace = escapeTomlString(input.workspaceDir);
   const mcpCwd = escapeTomlString(input.mcpCwd);
+  const envEntries = Object.entries(input.mcpEnv).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+
   return [
     `[projects."${workspace}"]`,
     `trust_level = "trusted"`,
@@ -30,6 +43,15 @@ function buildConfigToml(input: CodexHomeConfigInput): string {
     `command = "${escapeTomlString(input.mcpCommand)}"`,
     `args = ${tomlArray(input.mcpArgs)}`,
     `cwd = "${mcpCwd}"`,
+    ...(envEntries.length > 0
+      ? [
+          "",
+          `[mcp_servers.mastra_local.env]`,
+          ...envEntries.map(
+            ([key, value]) => `${tomlKey(key)} = "${escapeTomlString(value)}"`,
+          ),
+        ]
+      : []),
     "",
   ].join("\n");
 }

@@ -107,6 +107,9 @@ describe("loadAppConfig", () => {
       CODEX_HOME_TEMPLATE_DIR: "./data/runtime/codex-home",
       CODEX_AUTH_SOURCE: "~/.codex/auth.json",
       MCP_SERVER_CWD: ".",
+      TRAQ_API_BASE_URL: "https://example.invalid/api/v3",
+      TRAQ_MCP_ENABLE_WRITE_TOOLS: "true",
+      TRAQ_MCP_DEFAULT_LIMIT: "50",
       INIT_CWD: "/tmp/unrelated-repo",
     } as unknown as NodeJS.ProcessEnv;
 
@@ -121,5 +124,11 @@ describe("loadAppConfig", () => {
       path.resolve("data/runtime/codex-home"),
     );
     expect(config.mcp.cwd).toBe(path.resolve("."));
+    expect(config.mcp.env).toEqual({
+      TRAQ_API_BASE_URL: "https://example.invalid/api/v3",
+      TRAQ_BOT_TOKEN: "dummy-token",
+      TRAQ_MCP_DEFAULT_LIMIT: "50",
+      TRAQ_MCP_ENABLE_WRITE_TOOLS: "true",
+    });
   });
 });

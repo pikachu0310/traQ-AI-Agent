@@ -44,6 +44,7 @@ async function main(): Promise<void> {
     mcpServerCommand: config.mcp.command,
     mcpServerArgs: config.mcp.args,
     mcpServerCwd: config.mcp.cwd,
+    mcpServerEnv: config.mcp.env,
   });
   await runner.initialize();
 
