@@ -1,5 +1,5 @@
 import path from "node:path";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import type { ConversationRecord } from "../types.js";
 
 export interface DataLayout {
@@ -76,6 +76,17 @@ export class FileStateStore {
       this.getConversationFilePath(record.conversationKey),
       record,
     );
+  }
+
+  async deleteConversation(conversationKey: string): Promise<boolean> {
+    try {
+      await unlink(this.getConversationFilePath(conversationKey));
+      return true;
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError.code === "ENOENT") return false;
+      throw error;
+    }
   }
 
   async prepareRawSessionLogPath(

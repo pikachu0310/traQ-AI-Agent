@@ -8,6 +8,11 @@ function truncate(text: string, max = 240): string {
   return `${text.slice(0, max)}...`;
 }
 
+type InboundCommand =
+  | { type: "run_codex"; prompt: string }
+  | { type: "reset_session" }
+  | { type: "ignore" };
+
 export class BotService {
   constructor(
     private readonly triggerPrefix: string,
@@ -21,25 +26,52 @@ export class BotService {
     });
   }
 
-  private extractPrompt(text: string): string | null {
+  private extractCommand(text: string): InboundCommand {
     const normalized = text.trim();
-    if (!normalized.startsWith(this.triggerPrefix)) return null;
+    if (normalized === "/reset") {
+      return { type: "reset_session" };
+    }
+    if (!normalized.startsWith(this.triggerPrefix)) {
+      return { type: "ignore" };
+    }
     const prompt = normalized.slice(this.triggerPrefix.length).trim();
-    return prompt.length > 0 ? prompt : "現在の状態を要約してください。";
+    return {
+      type: "run_codex",
+      prompt: prompt.length > 0 ? prompt : "現在の状態を要約してください。",
+    };
   }
 
   private async handleMessage(message: InboundTraqMessage): Promise<void> {
-    const prompt = this.extractPrompt(message.text);
-    if (!prompt) return;
-    const codexPrompt = this.buildExecutionPrompt(prompt);
-
+    const command = this.extractCommand(message.text);
+    if (command.type === "ignore") return;
     const conversationKey = message.threadId ?? message.channelId;
-    const store = this.runner.getStore();
-    const previous = await store.loadConversation(conversationKey);
     const target = { channelId: message.channelId, threadId: message.threadId };
+    const store = this.runner.getStore();
+
+    if (command.type === "reset_session") {
+      const deleted = await store.deleteConversation(conversationKey);
+      await this.adapter.sendMessage(
+        target,
+        deleted
+          ? "このチャンネルのセッションをリセットしました。次回の `/codex` は新しいセッションで実行します。"
+          : "このチャンネルに保持中のセッションはありません。次回の `/codex` は新しいセッションで実行します。",
+      );
+      return;
+    }
+
+    const prompt = command.prompt;
+    const codexPrompt = this.buildExecutionPrompt(prompt);
+    const previous = await store.loadConversation(conversationKey);
 
     let agentMessageProgressCount = 0;
     let startProgressNotified = false;
+    let latestRunUsage:
+      | {
+          inputTokens?: number;
+          outputTokens?: number;
+          cachedInputTokens?: number;
+        }
+      | undefined;
     try {
       const result = await this.runner.run(
         {
@@ -55,6 +87,9 @@ export class BotService {
               `Codex 実行を開始 (conversationKey=\`${conversationKey}\`) (セッション開始: \`${event.sessionId}\`)`,
             );
             return;
+          }
+          if (event.type === "run_completed") {
+            latestRunUsage = event.usage;
           }
 
           const progressText = this.formatProgressEvent(event, () => {
@@ -80,8 +115,7 @@ export class BotService {
           "最終回答:",
           result.finalAnswer,
           "",
-          `session_id: ${result.sessionId ?? "(取得できず)"}`,
-          `raw_log: ${result.rawLogPath}`,
+          `(input=${latestRunUsage?.inputTokens ?? "?"}, output=${latestRunUsage?.outputTokens ?? "?"})`,
         ].join("\n"),
       );
     } catch (error) {
@@ -114,11 +148,9 @@ export class BotService {
       case "turn_started":
         return null;
       case "tool_call_started":
-        return `MCP 呼び出し開始: \`${event.server}/${event.tool}\``;
+        return `MCP 呼び出し: \`${event.server}/${event.tool}\``;
       case "tool_call_finished":
-        return `MCP 呼び出し完了: \`${event.server}/${event.tool}\` (${event.status})${
-          event.detail ? `\n${truncate(event.detail)}` : ""
-        }`;
+        return null;
       case "command_started":
         return `コマンド実行: \`${truncate(event.command, 120)}\``;
       case "command_finished":
@@ -132,7 +164,7 @@ export class BotService {
       case "error":
         return `進捗エラー: ${truncate(event.message)}`;
       case "run_completed":
-        return `turn 完了: input=${event.usage?.inputTokens ?? "?"}, output=${event.usage?.outputTokens ?? "?"}`;
+        return null;
       default:
         return null;
     }

@@ -107,6 +107,7 @@ corepack pnpm dev
 ```
 
 traQ で `BOT_TRIGGER_PREFIX`（デフォルト `/codex`）付きメッセージを送ると処理します。
+同じチャンネル（または thread）で保持している会話セッションを破棄したい場合は、`/reset` を送るとその会話キーのセッションのみリセットされます。
 
 ## traQ API ツールの使い方
 

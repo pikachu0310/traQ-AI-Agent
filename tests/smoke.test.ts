@@ -60,6 +60,41 @@ describe("FileStateStore", () => {
 
     await rm(tempDir, { recursive: true, force: true });
   });
+
+  it("deletes only specified conversation mapping", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "mvp-store-"));
+    const store = new FileStateStore(tempDir);
+    await store.initialize();
+
+    await store.saveConversation({
+      conversationKey: "thread-a",
+      updatedAt: new Date().toISOString(),
+      lastSessionId: "session-a",
+      lastPrompt: "hello",
+      lastRawLogPath: "codex-sessions/thread-a/demo.jsonl",
+      runs: [],
+    });
+    await store.saveConversation({
+      conversationKey: "thread-b",
+      updatedAt: new Date().toISOString(),
+      lastSessionId: "session-b",
+      lastPrompt: "world",
+      lastRawLogPath: "codex-sessions/thread-b/demo.jsonl",
+      runs: [],
+    });
+
+    const deleted = await store.deleteConversation("thread-a");
+    expect(deleted).toBe(true);
+    expect(await store.loadConversation("thread-a")).toBeNull();
+    expect((await store.loadConversation("thread-b"))?.lastSessionId).toBe(
+      "session-b",
+    );
+
+    const missingDeleted = await store.deleteConversation("thread-a");
+    expect(missingDeleted).toBe(false);
+
+    await rm(tempDir, { recursive: true, force: true });
+  });
 });
 
 describe("loadAppConfig", () => {
