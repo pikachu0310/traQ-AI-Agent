@@ -130,6 +130,45 @@ describe("BotService /reset command", () => {
 });
 
 describe("BotService progress output", () => {
+  it("injects global AGENTS instructions into codex prompt", async () => {
+    const store = {
+      loadConversation: vi.fn(async () => null),
+      saveConversation: vi.fn(),
+      deleteConversation: vi.fn(),
+    };
+    const run = vi.fn(async (_request, onProgress) => {
+      await onProgress({ type: "session_started", sessionId: "session-1" });
+      await onProgress({
+        type: "run_completed",
+        usage: { inputTokens: 10, outputTokens: 20 },
+      });
+      return {
+        sessionId: "session-1",
+        finalAnswer: "回答本文",
+        rawLogPath: "codex-sessions/channel-a/demo.jsonl",
+        startedAt: "2026-01-01T00:00:00.000Z",
+        completedAt: "2026-01-01T00:00:01.000Z",
+      };
+    });
+    const runner = {
+      getStore: () => store,
+      run,
+    } as unknown as CodexRunner;
+    const adapter = new TestAdapter([makeInboundMessage("/codex hello")]);
+    const service = new BotService("/codex", adapter, runner, {
+      globalAgentsInstructions: "Always answer in Japanese.",
+      globalAgentsSourcePath: "/home/test/.codex/AGENTS.md",
+    });
+
+    await service.start();
+
+    const request = run.mock.calls[0]?.[0] as { prompt: string } | undefined;
+    expect(request?.prompt).toContain(
+      "Additional operating instructions loaded from /home/test/.codex/AGENTS.md:",
+    );
+    expect(request?.prompt).toContain("Always answer in Japanese.");
+  });
+
   it("sends a single MCP call log and embeds usage in the final answer", async () => {
     const store = {
       loadConversation: vi.fn(async () => null),
@@ -219,5 +258,86 @@ describe("BotService progress output", () => {
 
     expect(adapter.sent).toHaveLength(3);
     expect(adapter.sent[1]?.content).toBe("コマンド失敗: (exit=1)");
+  });
+
+  it("includes MCP search arguments in progress output", async () => {
+    const store = {
+      loadConversation: vi.fn(async () => null),
+      saveConversation: vi.fn(),
+      deleteConversation: vi.fn(),
+    };
+    const run = vi.fn(async (_request, onProgress) => {
+      await onProgress({ type: "session_started", sessionId: "session-1" });
+      await onProgress({
+        type: "tool_call_started",
+        server: "mastra_local",
+        tool: "traq_search_messages",
+        arguments: { word: "deploy", channelId: "channel-a", limit: 20 },
+      });
+      await onProgress({
+        type: "run_completed",
+        usage: { inputTokens: 123, outputTokens: 45 },
+      });
+      return {
+        sessionId: "session-1",
+        finalAnswer: "回答本文",
+        rawLogPath: "codex-sessions/channel-a/demo.jsonl",
+        startedAt: "2026-01-01T00:00:00.000Z",
+        completedAt: "2026-01-01T00:00:01.000Z",
+      };
+    });
+    const runner = {
+      getStore: () => store,
+      run,
+    } as unknown as CodexRunner;
+    const adapter = new TestAdapter([makeInboundMessage("/codex hello")]);
+    const service = new BotService("/codex", adapter, runner);
+
+    await service.start();
+
+    expect(adapter.sent).toHaveLength(3);
+    expect(adapter.sent[1]?.content).toContain(
+      "MCP 呼び出し: `mastra_local/traq_search_messages`",
+    );
+    expect(adapter.sent[1]?.content).toContain('検索条件: word="deploy"');
+    expect(adapter.sent[1]?.content).toContain('channelId="channel-a"');
+  });
+
+  it("forwards reasoning progress to traQ", async () => {
+    const store = {
+      loadConversation: vi.fn(async () => null),
+      saveConversation: vi.fn(),
+      deleteConversation: vi.fn(),
+    };
+    const run = vi.fn(async (_request, onProgress) => {
+      await onProgress({ type: "session_started", sessionId: "session-1" });
+      await onProgress({
+        type: "agent_reasoning",
+        text: "まず API capability を確認し、検索条件を絞り込みます。",
+      });
+      await onProgress({
+        type: "run_completed",
+        usage: { inputTokens: 123, outputTokens: 45 },
+      });
+      return {
+        sessionId: "session-1",
+        finalAnswer: "回答本文",
+        rawLogPath: "codex-sessions/channel-a/demo.jsonl",
+        startedAt: "2026-01-01T00:00:00.000Z",
+        completedAt: "2026-01-01T00:00:01.000Z",
+      };
+    });
+    const runner = {
+      getStore: () => store,
+      run,
+    } as unknown as CodexRunner;
+    const adapter = new TestAdapter([makeInboundMessage("/codex hello")]);
+    const service = new BotService("/codex", adapter, runner);
+
+    await service.start();
+
+    expect(adapter.sent).toHaveLength(3);
+    expect(adapter.sent[1]?.content).toContain("思考:");
+    expect(adapter.sent[1]?.content).toContain("API capability");
   });
 });

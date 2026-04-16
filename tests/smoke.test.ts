@@ -37,6 +37,20 @@ describe("CodexEventParser", () => {
       server: "mastra_local",
       tool: "get_demo_service_status",
     });
+
+    const reasoning = parser.parseLine(
+      JSON.stringify({
+        type: "item.completed",
+        item: {
+          type: "reasoning",
+          summary: [{ text: "まず必要な API を確認する" }],
+        },
+      }),
+    );
+    expect(reasoning.progressEvents[0]).toEqual({
+      type: "agent_reasoning",
+      text: "まず必要な API を確認する",
+    });
   });
 });
 
@@ -122,6 +136,11 @@ describe("loadAppConfig", () => {
     expect(config.codexWorkingDir).toBe(path.resolve("."));
     expect(config.codex.codexHomeTemplateDir).toBe(
       path.resolve("data/runtime/codex-home"),
+    );
+    expect(config.codex.model).toBe("gpt-5.3-codex");
+    expect(config.codex.reasoningEffort).toBe("high");
+    expect(config.codex.agentsPath).toBe(
+      path.resolve(path.join(os.homedir(), ".codex/AGENTS.md")),
     );
     expect(config.mcp.cwd).toBe(path.resolve("."));
     expect(config.mcp.env).toEqual({

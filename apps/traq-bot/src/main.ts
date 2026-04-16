@@ -1,4 +1,5 @@
 import path from "node:path";
+import { readFile } from "node:fs/promises";
 import { loadAppConfig } from "@mvp/shared";
 import { CodexRunner } from "@mvp/codex-runner";
 import type { BotAdapter } from "./adapters/types.js";
@@ -31,6 +32,14 @@ async function main(): Promise<void> {
   const config = loadAppConfig();
   const adapter = createAdapterFromConfig(config);
   const codexHomeDir = path.resolve(config.codex.codexHomeTemplateDir);
+  let globalAgentsInstructions: string | undefined;
+  try {
+    globalAgentsInstructions = (
+      await readFile(config.codex.agentsPath, "utf-8")
+    ).trim();
+  } catch {
+    globalAgentsInstructions = undefined;
+  }
 
   const runner = new CodexRunner({
     dataDir: config.dataDir,
@@ -48,7 +57,10 @@ async function main(): Promise<void> {
   });
   await runner.initialize();
 
-  const service = new BotService(config.triggerPrefix, adapter, runner);
+  const service = new BotService(config.triggerPrefix, adapter, runner, {
+    globalAgentsInstructions,
+    globalAgentsSourcePath: config.codex.agentsPath,
+  });
   await service.start();
 }
 

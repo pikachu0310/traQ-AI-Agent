@@ -82,8 +82,9 @@ corepack pnpm demo
 
 期待される進捗ログ例:
 
-- `MCP 呼び出し開始: mastra_local/get_demo_service_status`
-- `MCP 呼び出し完了: ... (completed)`
+- `MCP 呼び出し: mastra_local/traq_search_messages (検索条件: word="deploy", channelId="...")`
+- `思考: まず traq_get_api_capabilities で利用可能ツールを確認します`
+- `途中回答: ...`
 - `最終回答: ...`
 
 ## Real traQ での実行
@@ -122,8 +123,10 @@ traQ で `BOT_TRIGGER_PREFIX`（デフォルト `/codex`）付きメッセージ
 ## Codex / Mastra 接続
 
 - Codex は `CODEX_HOME=data/runtime/codex-home` を使って起動
+- モデル既定値は `gpt-5.3-codex`、`model_reasoning_effort=high`
 - `data/runtime/codex-home/config.toml` に `mcp_servers.mastra_local` を生成
 - `config.toml` の `mcp_servers.mastra_local.env` に `TRAQ_*` 系の必要環境変数を埋め込み、MCP サーバー起動時へ明示注入
+- `CODEX_AGENTS_PATH`（既定 `~/.codex/AGENTS.md`）が存在する場合は内容を実行時の初期プロンプトへ注入
 - デフォルト起動コマンド:
   - `node --import tsx apps/mastra-mcp/src/index.ts`
 

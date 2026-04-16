@@ -38,6 +38,12 @@ function parseList(raw: string | undefined, fallback: string[]): string[] {
   return raw.split(" ").map((entry) => entry.trim()).filter(Boolean);
 }
 
+function parseOptionalNonEmpty(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
 function expandHomePath(input: string): string {
   if (input === "~") return os.homedir();
   if (input.startsWith("~/")) {
@@ -64,6 +70,7 @@ export interface AppConfig {
     dangerousBypass: boolean;
     codexHomeTemplateDir: string;
     authSourcePath?: string;
+    agentsPath: string;
   };
   mcp: {
     command: string;
@@ -124,8 +131,9 @@ export function loadAppConfig(
     codexWorkingDir,
     codex: {
       command: resolvedEnv.CODEX_COMMAND ?? "codex",
-      model: resolvedEnv.CODEX_MODEL || undefined,
-      reasoningEffort: resolvedEnv.CODEX_REASONING_EFFORT || undefined,
+      model: parseOptionalNonEmpty(resolvedEnv.CODEX_MODEL) ?? "gpt-5.3-codex",
+      reasoningEffort:
+        parseOptionalNonEmpty(resolvedEnv.CODEX_REASONING_EFFORT) ?? "high",
       dangerousBypass: parseBool(resolvedEnv.CODEX_DANGEROUS_BYPASS, true),
       codexHomeTemplateDir: resolvePathFromCwd(
         projectRoot,
@@ -134,6 +142,10 @@ export function loadAppConfig(
       authSourcePath: resolvePathFromCwd(
         projectRoot,
         resolvedEnv.CODEX_AUTH_SOURCE ?? "~/.codex/auth.json",
+      ),
+      agentsPath: resolvePathFromCwd(
+        projectRoot,
+        resolvedEnv.CODEX_AGENTS_PATH ?? "~/.codex/AGENTS.md",
       ),
     },
     mcp: {

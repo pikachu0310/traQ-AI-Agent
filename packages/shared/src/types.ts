@@ -49,6 +49,7 @@ export type RunnerProgressEvent =
     }
   | { type: "command_started"; command: string }
   | { type: "command_finished"; command: string; exitCode?: number }
+  | { type: "agent_reasoning"; text: string }
   | { type: "agent_message"; text: string }
   | { type: "error"; message: string }
   | {

@@ -8,6 +8,7 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 function flattenText(value: unknown): string {
   if (!value) return "";
   if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (Array.isArray(value)) {
     return value.map((item) => flattenText(item)).filter(Boolean).join("\n");
   }
@@ -21,10 +22,42 @@ function flattenText(value: unknown): string {
     record.stderr,
     record.content,
     record.result,
+    record.summary,
+    record.reasoning,
+    record.reasoning_summary,
+    record.analysis,
+    record.thinking,
+    record.output,
+    record.value,
   ]
     .map((item) => flattenText(item))
     .filter(Boolean)
     .join("\n");
+}
+
+function normalizeInlineText(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function isReasoningItem(itemType: string, item: Record<string, unknown>): boolean {
+  if (!itemType) return false;
+  if (!/reason|think|analysis/i.test(itemType)) return false;
+  if (itemType === "agent_message") return false;
+  return true;
+}
+
+function extractReasoningText(item: Record<string, unknown>): string {
+  const text = flattenText([
+    item.summary,
+    item.reasoning,
+    item.reasoning_summary,
+    item.analysis,
+    item.thinking,
+    item.content,
+    item.result,
+    item.text,
+  ]);
+  return normalizeInlineText(text);
 }
 
 function flattenCommand(value: unknown): string {
@@ -161,6 +194,14 @@ export class CodexEventParser {
               ? item.exitCode
               : undefined;
         progressEvents.push({ type: "command_finished", command, exitCode });
+      }
+      return { progressEvents };
+    }
+
+    if (eventType.startsWith("item.") && isReasoningItem(itemType, item)) {
+      const text = extractReasoningText(item);
+      if (text) {
+        progressEvents.push({ type: "agent_reasoning", text });
       }
       return { progressEvents };
     }
